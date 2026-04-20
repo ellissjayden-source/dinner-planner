@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dinner Planner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Lato:wght@300;400;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f8f5f0;
+      --surface: #ffffff;
+      --surface2: #f2ede6;
+      --border: #e4ddd3;
+      --text: #1e1a14;
+      --muted: #6b6356;
+      --hint: #a89e90;
+      --accent: #7c5c3e;
+      --accent-light: #f0e8df;
+      --green: #4a7c59;
+      --green-light: #e8f2eb;
+      --red: #b84040;
+      --red-light: #faeaea;
+      --blue: #3d6b8e;
+      --blue-light: #e6eef5;
+      --amber: #b87c2a;
+      --amber-light: #fdf0dc;
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
+    body { font-family: 'Lato', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+    /* Header */
+    .app-header { background: var(--accent); padding: 1rem 1.25rem; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 50; }
+    .hamburger { background: none; border: none; cursor: pointer; padding: 4px; display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+    .hamburger span { display: block; width: 22px; height: 2px; background: #fff; border-radius: 2px; }
+    .page-title { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 400; color: #fff; flex: 1; letter-spacing: 0.01em; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.3); flex-shrink: 0; transition: background 0.3s; }
+    .sync-dot.live { background: #7dcc94; }
+
+    /* Drawer */
+    .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+    .drawer-overlay.open { opacity: 1; pointer-events: all; }
+    .drawer { position: fixed; top: 0; left: -290px; width: 290px; height: 100vh; background: var(--surface); z-index: 101; transition: left 0.28s cubic-bezier(0.4,0,0.2,1); display: flex; flex-direction: column; }
+    .drawer.open { left: 0; }
+    .drawer-header { padding: 1.5rem 1.25rem 1rem; background: var(--accent); }
+    .drawer-title { font-family: 'Playfair Display', serif; font-size: 20px; color: #fff; font-weight: 400; }
+    .drawer-subtitle { font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 2px; }
+    .drawer-nav { padding: 0.75rem 0; flex: 1; overflow-y: auto; }
+    .nav-item { display: flex; align-items: center; gap: 14px; padding: 13px 1.25rem; cursor: pointer; transition: background 0.15s; border: none; background: none; width: 100%; text-align: left; }
+    .nav-item:hover { background: var(--surface2); }
+    .nav-item.active { background: var(--accent-light); border-left: 3px solid var(--accent); }
+    .nav-item.active .nav-label { color: var(--accent); font-weight: 700; }
+    .nav-icon { font-size: 20px; flex-shrink: 0; width: 28px; text-align: center; }
+    .nav-label { font-size: 15px; color: var(--text); }
+    .drawer-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--border); font-size: 11px; color: var(--hint); }
+
+    /* Pages */
+    .page { display: none; max-width: 560px; margin: 0 auto; padding: 1.25rem 1rem 5rem; }
+    .page.active { display: block; }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem; }
+    .card-title { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 400; color: var(--text); margin-bottom: 1rem; }
+    .section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem; }
+
+    /* Fields */
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+    .field label { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.03em; }
+    .field input, .field textarea, .field select {
+      font-family: 'Lato', sans-serif; font-size: 15px; padding: 10px 12px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); width: 100%;
+      appearance: none; -webkit-appearance: none; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #7c5c3e22; background: var(--surface); }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .select-wrap { position: relative; }
+    .select-wrap::after { content: '▾'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .hint { font-size: 11px; color: var(--hint); margin-top: 3px; }
+
+    /* Buttons */
+    .btn { font-family: 'Lato', sans-serif; font-size: 14px; font-weight: 700; padding: 10px 18px; border-radius: var(--radius-sm); border: none; cursor: pointer; transition: opacity 0.15s, transform 0.1s; letter-spacing: 0.02em; }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #fff; width: 100%; padding: 13px; font-size: 15px; }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-green { background: var(--green); color: #fff; }
+    .btn-green:hover { opacity: 0.88; }
+    .btn-outline { background: none; border: 1px solid var(--border); color: var(--muted); }
+    .btn-outline:hover { background: var(--surface2); }
+    .btn-danger { background: none; border: none; color: var(--hint); font-size: 16px; padding: 4px 8px; cursor: pointer; }
+    .btn-danger:hover { color: var(--red); }
+
+    /* Ingredient tag input */
+    .tag-input-wrap { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); padding: 8px; min-height: 44px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; cursor: text; transition: border-color 0.15s; }
+    .tag-input-wrap:focus-within { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px #7c5c3e22; }
+    .tag { display: flex; align-items: center; gap: 4px; background: var(--accent-light); color: var(--accent); font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+    .tag button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 0; line-height: 1; opacity: 0.6; }
+    .tag button:hover { opacity: 1; }
+    .tag-input { border: none; background: none; outline: none; font-family: 'Lato', sans-serif; font-size: 14px; color: var(--text); min-width: 120px; flex: 1; padding: 2px 4px; }
+
+    /* Meal cards */
+    .meal-list { display: flex; flex-direction: column; gap: 10px; }
+    .meal-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; display: flex; align-items: flex-start; gap: 12px; transition: box-shadow 0.15s; }
+    .meal-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+    .meal-emoji { font-size: 28px; flex-shrink: 0; width: 40px; text-align: center; }
+    .meal-info { flex: 1; min-width: 0; }
+    .meal-name { font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 400; color: var(--text); }
+    .meal-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .meal-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .meal-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--surface2); color: var(--muted); }
+    .meal-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); }
+    .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+    /* Week planner */
+    .week-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1rem; }
+    .day-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; display: flex; align-items: center; gap: 12px; }
+    .day-name { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; width: 36px; flex-shrink: 0; }
+    .day-meal { flex: 1; }
+    .day-meal-name { font-size: 14px; font-weight: 400; color: var(--text); font-family: 'Playfair Display', serif; }
+    .day-meal-empty { font-size: 13px; color: var(--hint); font-style: italic; }
+    .day-select { font-family: 'Lato', sans-serif; font-size: 13px; padding: 6px 28px 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); appearance: none; -webkit-appearance: none; outline: none; width: 100%; }
+    .day-select-wrap { position: relative; flex: 1; }
+    .day-select-wrap::after { content: '▾'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; font-size: 12px; }
+    .plan-actions { display: flex; gap: 8px; margin-bottom: 1rem; }
+
+    /* Grocery list */
+    .grocery-section { margin-bottom: 1.25rem; }
+    .grocery-section-title { font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--accent-light); }
+    .grocery-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .grocery-item:last-child { border-bottom: none; }
+    .grocery-check { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid var(--border); flex-shrink: 0; cursor: pointer; appearance: none; -webkit-appearance: none; margin-top: 1px; transition: all 0.15s; }
+    .grocery-check:checked { background: var(--green); border-color: var(--green); }
+    .grocery-check:checked + .grocery-text { text-decoration: line-through; color: var(--hint); }
+    .grocery-text { flex: 1; font-size: 14px; color: var(--text); line-height: 1.4; }
+    .grocery-synergy { font-size: 10px; font-weight: 700; color: var(--amber); background: var(--amber-light); padding: 1px 6px; border-radius: 999px; margin-left: 6px; white-space: nowrap; }
+    .extra-item-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .extra-item-row input { font-family: 'Lato', sans-serif; font-size: 14px; padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); flex: 1; outline: none; }
+    .extra-item-row input:focus { border-color: var(--accent); background: var(--surface); }
+    .extras-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .extra-tag { display: flex; align-items: center; justify-content: space-between; background: var(--blue-light); color: var(--blue); font-size: 13px; padding: 6px 10px; border-radius: var(--radius-sm); }
+
+    /* Toast */
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--text); color: #fff; padding: 10px 20px; border-radius: var(--radius-sm); font-size: 14px; opacity: 0; transition: opacity 0.25s, transform 0.25s; pointer-events: none; z-index: 200; white-space: nowrap; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .hidden { display: none; }
+    .loading { text-align: center; padding: 2rem; color: var(--muted); font-size: 14px; }
+    @media (max-width: 400px) { .field-row { grid-template-columns: 1fr; } .plan-actions { flex-direction: column; } }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="page-title" id="pageTitle">Dinner Ideas</div>
+  <div class="sync-dot" id="syncDot"></div>
+</header>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-title">Dinner Planner</div>
+    <div class="drawer-subtitle">Plan smarter, shop smarter</div>
+  </div>
+  <nav class="drawer-nav">
+    <button class="nav-item active" data-page="meals" onclick="navigateTo('meals')">
+      <div class="nav-icon">🍽️</div>
+      <div class="nav-label">Dinner ideas</div>
+    </button>
+    <button class="nav-item" data-page="planner" onclick="navigateTo('planner')">
+      <div class="nav-icon">📅</div>
+      <div class="nav-label">Week planner</div>
+    </button>
+    <button class="nav-item" data-page="groceries" onclick="navigateTo('groceries')">
+      <div class="nav-icon">🛒</div>
+      <div class="nav-label">Grocery list</div>
+    </button>
+    <button class="nav-item" data-page="add" onclick="navigateTo('add')">
+      <div class="nav-icon">➕</div>
+      <div class="nav-label">Add dinner idea</div>
+    </button>
+  </nav>
+  <div class="drawer-footer">Shared across all devices</div>
+</div>
+
+<!-- MEALS PAGE -->
+<div class="page active" id="page-meals">
+  <div class="card">
+    <div class="card-title">Your dinner ideas</div>
+    <div class="meal-list" id="mealList">
+      <div class="loading">Connecting to database...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD MEAL PAGE -->
+<div class="page" id="page-add">
+  <div class="card">
+    <div class="card-title" id="formTitle">Add a dinner idea</div>
+
+    <div class="field">
+      <label>Meal name</label>
+      <input type="text" id="mealName" placeholder="e.g. Chicken stir fry" />
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Cuisine type</label>
+        <div class="select-wrap">
+          <select id="mealCuisine">
+            <option value="">Any</option>
+            <option>Australian</option>
+            <option>Italian</option>
+            <option>Asian</option>
+            <option>Mexican</option>
+            <option>Indian</option>
+            <option>Mediterranean</option>
+            <option>American</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Cook time</label>
+        <div class="select-wrap">
+          <select id="mealTime">
+            <option value="">Unknown</option>
+            <option>Under 30 min</option>
+            <option>30–60 min</option>
+            <option>Over 1 hour</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Ingredients</label>
+      <div class="tag-input-wrap" id="tagWrap" onclick="document.getElementById('tagInput').focus()">
+        <input type="text" id="tagInput" class="tag-input" placeholder="Type ingredient, press Enter or comma..." />
+      </div>
+      <div class="hint">Press Enter or comma to add each ingredient</div>
+    </div>
+
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="mealNotes" placeholder="Recipe notes, variations, family favourites..."></textarea>
+    </div>
+
+    <button class="btn btn-primary" id="saveBtn" onclick="saveMeal()">Save dinner idea</button>
+    <button class="btn btn-outline" id="cancelEditBtn" style="width:100%;margin-top:8px;display:none;" onclick="cancelEdit()">Cancel</button>
+  </div>
+</div>
+
+<!-- WEEK PLANNER PAGE -->
+<div class="page" id="page-planner">
+  <div class="card">
+    <div class="card-title">This week's dinners</div>
+    <div class="plan-actions">
+      <button class="btn btn-green" onclick="autoFillWeek()">✨ Auto-fill week</button>
+      <button class="btn btn-outline" onclick="clearWeek()">Clear week</button>
+    </div>
+    <div class="week-grid" id="weekGrid"></div>
+    <button class="btn btn-primary" onclick="navigateTo('groceries')">Generate grocery list →</button>
+  </div>
+</div>
+
+<!-- GROCERY LIST PAGE -->
+<div class="page" id="page-groceries">
+  <div class="card">
+    <div class="card-title">Grocery list</div>
+
+    <!-- Extra items -->
+    <div class="section-label">Add extra items</div>
+    <div class="extra-item-row">
+      <input type="text" id="extraInput" placeholder="e.g. Washing powder, milk..." onkeydown="if(event.key==='Enter')addExtra()" />
+      <button class="btn btn-outline" onclick="addExtra()">Add</button>
+    </div>
+    <div class="extras-list" id="extrasList"></div>
+
+    <button class="btn btn-primary" onclick="generateGroceries()" style="margin-bottom:1rem;">Generate list</button>
+
+    <div id="groceryOutput"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyA5fmgxItEnB-fy2i8JZKwic8sPKoZEVnM",
+    authDomain: "dinner-planner-cf69a.firebaseapp.com",
+    projectId: "dinner-planner-cf69a",
+    storageBucket: "dinner-planner-cf69a.firebasestorage.app",
+    messagingSenderId: "623813974847",
+    appId: "1:623813974847:web:e2e38dfdeb46e0dbfb918a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const mealsCol = collection(db, "meals");
+
+  let allMeals = [];
+  let ingredients = [];
+  let editingId = null;
+  let extras = [];
+
+  // Week plan — stored locally
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  let weekPlan = JSON.parse(localStorage.getItem('weekPlan') || '{}');
+
+  // ---- NAVIGATION ----
+  const pageTitles = { meals: 'Dinner ideas', add: 'Add dinner idea', planner: 'Week planner', groceries: 'Grocery list' };
+
+  window.toggleDrawer = () => { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawerOverlay').classList.toggle('open'); }
+  window.closeDrawer = () => { document.getElementById('drawer').classList.remove('open'); document.getElementById('drawerOverlay').classList.remove('open'); }
+
+  window.navigateTo = function(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.querySelector(`[data-page="${page}"]`).classList.add('active');
+    document.getElementById('pageTitle').textContent = pageTitles[page];
+    closeDrawer();
+    if (page === 'planner') renderWeekGrid();
+    if (page === 'groceries') renderExtras();
+  }
+
+  // ---- TAG INPUT ----
+  const tagInput = document.getElementById('tagInput');
+  tagInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput.value); }
+    if (e.key === 'Backspace' && tagInput.value === '' && ingredients.length > 0) { ingredients.pop(); renderTags(); }
+  });
+  tagInput.addEventListener('blur', () => { if (tagInput.value.trim()) addTag(tagInput.value); });
+
+  function addTag(val) {
+    const v = val.trim().replace(/,$/, '').trim().toLowerCase();
+    if (v && !ingredients.includes(v)) { ingredients.push(v); renderTags(); }
+    tagInput.value = '';
+  }
+
+  function renderTags() {
+    const wrap = document.getElementById('tagWrap');
+    wrap.querySelectorAll('.tag').forEach(t => t.remove());
+    ingredients.forEach((ing, i) => {
+      const tag = document.createElement('div');
+      tag.className = 'tag';
+      tag.innerHTML = `${ing}<button onclick="removeTag(${i})">×</button>`;
+      wrap.insertBefore(tag, tagInput);
+    });
+  }
+
+  window.removeTag = function(i) { ingredients.splice(i, 1); renderTags(); }
+
+  // ---- SAVE MEAL ----
+  window.saveMeal = async function() {
+    const name = document.getElementById('mealName').value.trim();
+    if (!name) { showToast('Please enter a meal name.'); return; }
+    if (ingredients.length === 0) { showToast('Please add at least one ingredient.'); return; }
+
+    const meal = {
+      name,
+      cuisine: document.getElementById('mealCuisine').value,
+      time: document.getElementById('mealTime').value,
+      ingredients,
+      notes: document.getElementById('mealNotes').value.trim(),
+      emoji: pickEmoji(document.getElementById('mealCuisine').value),
+      updatedAt: serverTimestamp()
+    };
+
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, "meals", editingId), meal);
+        showToast('Dinner idea updated!');
+        cancelEdit();
+      } else {
+        meal.createdAt = serverTimestamp();
+        await addDoc(mealsCol, meal);
+        showToast('Dinner idea saved!');
+      }
+      clearForm();
+      navigateTo('meals');
+    } catch(e) { showToast('Error saving — check connection.'); console.error(e); }
+    btn.disabled = false; btn.textContent = editingId ? 'Update dinner idea' : 'Save dinner idea';
+  }
+
+  function clearForm() {
+    document.getElementById('mealName').value = '';
+    document.getElementById('mealCuisine').value = '';
+    document.getElementById('mealTime').value = '';
+    document.getElementById('mealNotes').value = '';
+    ingredients = [];
+    renderTags();
+  }
+
+  window.cancelEdit = function() {
+    editingId = null;
+    clearForm();
+    document.getElementById('formTitle').textContent = 'Add a dinner idea';
+    document.getElementById('saveBtn').textContent = 'Save dinner idea';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+  }
+
+  window.editMeal = function(id) {
+    const meal = allMeals.find(m => m.id === id);
+    if (!meal) return;
+    editingId = id;
+    document.getElementById('mealName').value = meal.name;
+    document.getElementById('mealCuisine').value = meal.cuisine || '';
+    document.getElementById('mealTime').value = meal.time || '';
+    document.getElementById('mealNotes').value = meal.notes || '';
+    ingredients = [...(meal.ingredients || [])];
+    renderTags();
+    document.getElementById('formTitle').textContent = 'Edit dinner idea';
+    document.getElementById('saveBtn').textContent = 'Update dinner idea';
+    document.getElementById('cancelEditBtn').style.display = 'block';
+    navigateTo('add');
+  }
+
+  window.deleteMeal = async function(id) {
+    if (!confirm('Delete this dinner idea?')) return;
+    // Remove from week plan too
+    Object.keys(weekPlan).forEach(day => { if (weekPlan[day] === id) delete weekPlan[day]; });
+    saveWeekPlan();
+    try { await deleteDoc(doc(db, "meals", id)); showToast('Deleted.'); }
+    catch(e) { showToast('Error deleting.'); }
+  }
+
+  function pickEmoji(cuisine) {
+    const map = { Italian: '🍝', Asian: '🍜', Mexican: '🌮', Indian: '🍛', Mediterranean: '🫒', American: '🍔', Australian: '🥩' };
+    return map[cuisine] || '🍽️';
+  }
+
+  // ---- RENDER MEALS ----
+  function renderMeals() {
+    const list = document.getElementById('mealList');
+    if (allMeals.length === 0) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">🍽️</div><div>No dinner ideas yet.</div><div style="font-size:13px;margin-top:6px;">Add your first one from the menu!</div></div>';
+      return;
+    }
+    list.innerHTML = allMeals.map(m => `
+      <div class="meal-card">
+        <div class="meal-emoji">${m.emoji || '🍽️'}</div>
+        <div class="meal-info">
+          <div class="meal-name">${m.name}</div>
+          <div class="meal-meta">${[m.cuisine, m.time].filter(Boolean).join(' · ')}</div>
+          <div class="meal-tags">${(m.ingredients||[]).slice(0,5).map(i=>`<span class="meal-tag">${i}</span>`).join('')}${(m.ingredients||[]).length>5?`<span class="meal-tag">+${m.ingredients.length-5} more</span>`:''}</div>
+          ${m.notes?`<div style="font-size:12px;color:var(--hint);margin-top:4px;">${m.notes}</div>`:''}
+        </div>
+        <div class="meal-actions">
+          <button class="btn-danger" onclick="editMeal('${m.id}')" title="Edit">✏️</button>
+          <button class="btn-danger" onclick="deleteMeal('${m.id}')" title="Delete">🗑️</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ---- WEEK PLANNER ----
+  function renderWeekGrid() {
+    const grid = document.getElementById('weekGrid');
+    grid.innerHTML = DAYS.map(day => {
+      const selectedId = weekPlan[day] || '';
+      const selectedMeal = allMeals.find(m => m.id === selectedId);
+      return `<div class="day-row">
+        <div class="day-name">${day}</div>
+        <div class="day-select-wrap">
+          <select class="day-select" onchange="setDayMeal('${day}', this.value)">
+            <option value="">— Pick a meal —</option>
+            ${allMeals.map(m => `<option value="${m.id}" ${m.id === selectedId ? 'selected' : ''}>${m.emoji || '🍽️'} ${m.name}</option>`).join('')}
+          </select>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  window.setDayMeal = function(day, id) {
+    if (id) weekPlan[day] = id;
+    else delete weekPlan[day];
+    saveWeekPlan();
+  }
+
+  window.autoFillWeek = function() {
+    if (allMeals.length === 0) { showToast('Add some dinner ideas first!'); return; }
+    const shuffled = [...allMeals].sort(() => Math.random() - 0.5);
+    DAYS.forEach((day, i) => {
+      weekPlan[day] = shuffled[i % shuffled.length].id;
+    });
+    saveWeekPlan();
+    renderWeekGrid();
+    showToast('Week filled!');
+  }
+
+  window.clearWeek = function() {
+    weekPlan = {};
+    saveWeekPlan();
+    renderWeekGrid();
+  }
+
+  function saveWeekPlan() {
+    localStorage.setItem('weekPlan', JSON.stringify(weekPlan));
+  }
+
+  // ---- EXTRAS ----
+  window.addExtra = function() {
+    const input = document.getElementById('extraInput');
+    const val = input.value.trim();
+    if (!val) return;
+    extras.push(val);
+    input.value = '';
+    renderExtras();
+  }
+
+  window.removeExtra = function(i) { extras.splice(i, 1); renderExtras(); }
+
+  function renderExtras() {
+    const list = document.getElementById('extrasList');
+    if (extras.length === 0) { list.innerHTML = ''; return; }
+    list.innerHTML = extras.map((e, i) => `
+      <div class="extra-tag">
+        <span>${e}</span>
+        <button onclick="removeExtra(${i})" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:15px;">×</button>
+      </div>
+    `).join('');
+  }
+
+  // ---- GROCERY LIST ----
+  window.generateGroceries = function() {
+    const plannedMeals = DAYS.map(d => allMeals.find(m => m.id === weekPlan[d])).filter(Boolean);
+    if (plannedMeals.length === 0 && extras.length === 0) {
+      showToast('Plan your week first!');
+      return;
+    }
+
+    // Count ingredient usage across meals
+    const ingredientMap = {};
+    plannedMeals.forEach(meal => {
+      (meal.ingredients || []).forEach(ing => {
+        const key = ing.toLowerCase().trim();
+        if (!ingredientMap[key]) ingredientMap[key] = { name: ing, meals: [], count: 0 };
+        ingredientMap[key].meals.push(meal.name);
+        ingredientMap[key].count++;
+      });
+    });
+
+    // Categorise ingredients
+    const categories = {
+      '🥩 Meat & seafood': [],
+      '🥦 Fruit & veg': [],
+      '🧀 Dairy & eggs': [],
+      '🥫 Pantry & dry goods': [],
+      '🌿 Herbs & spices': [],
+      '🫙 Sauces & condiments': [],
+      '🛒 Household extras': [],
+      '📦 Other': []
+    };
+
+    const catRules = [
+      { cat: '🥩 Meat & seafood', words: ['chicken','beef','pork','lamb','fish','salmon','tuna','mince','steak','bacon','sausage','prawn','shrimp','turkey','duck'] },
+      { cat: '🥦 Fruit & veg', words: ['onion','garlic','tomato','carrot','celery','capsicum','pepper','potato','lettuce','spinach','broccoli','zucchini','mushroom','corn','pea','bean','lemon','lime','avocado','cucumber','cabbage','kale','leek','ginger','apple','banana','orange','pumpkin','cauliflower','eggplant','asparagus','spring onion','chilli'] },
+      { cat: '🧀 Dairy & eggs', words: ['milk','cheese','cream','butter','yoghurt','yogurt','egg','parmesan','mozzarella','feta','ricotta','sour cream'] },
+      { cat: '🌿 Herbs & spices', words: ['basil','oregano','thyme','rosemary','parsley','coriander','cumin','paprika','turmeric','cinnamon','bay leaf','chili flake','pepper','salt','curry','herb'] },
+      { cat: '🫙 Sauces & condiments', words: ['soy sauce','fish sauce','oyster sauce','tomato sauce','ketchup','mayo','mayonnaise','mustard','vinegar','oil','olive oil','sesame oil','stock','broth','coconut milk','coconut cream','worcestershire','tabasco','hoisin','teriyaki'] },
+      { cat: '🥫 Pantry & dry goods', words: ['pasta','rice','noodle','bread','flour','sugar','lentil','chickpea','can','tin','kidney bean','black bean','quinoa','couscous','panko','breadcrumb'] },
+    ];
+
+    Object.values(ingredientMap).forEach(item => {
+      const key = item.name.toLowerCase();
+      let placed = false;
+      for (const rule of catRules) {
+        if (rule.words.some(w => key.includes(w))) {
+          categories[rule.cat].push(item);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) categories['📦 Other'].push(item);
+    });
+
+    // Add extras to household
+    extras.forEach(e => {
+      categories['🛒 Household extras'].push({ name: e, meals: [], count: 1 });
+    });
+
+    // Render
+    const output = document.getElementById('groceryOutput');
+    let html = '';
+
+    Object.entries(categories).forEach(([cat, items]) => {
+      if (items.length === 0) return;
+      html += `<div class="grocery-section">
+        <div class="grocery-section-title">${cat}</div>`;
+      items.forEach(item => {
+        const synergy = item.count > 1;
+        html += `<div class="grocery-item">
+          <input type="checkbox" class="grocery-check" />
+          <div class="grocery-text">
+            ${item.name}
+            ${synergy ? `<span class="grocery-synergy">Used in ${item.count} meals</span>` : ''}
+            ${synergy ? `<div style="font-size:11px;color:var(--hint);margin-top:2px;">${item.meals.join(', ')}</div>` : ''}
+          </div>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+
+    if (!html) html = '<div class="loading">No ingredients to show.</div>';
+    output.innerHTML = html;
+    showToast('Grocery list generated!');
+  }
+
+  // ---- FIRESTORE LISTENER ----
+  const q = query(mealsCol, orderBy("createdAt", "desc"));
+  onSnapshot(q, snapshot => {
+    document.getElementById('syncDot').classList.add('live');
+    allMeals = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderMeals();
+    const activePage = document.querySelector('.page.active')?.id;
+    if (activePage === 'page-planner') renderWeekGrid();
+  }, err => {
+    document.getElementById('syncDot').classList.remove('live');
+    console.error(err);
+  });
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+</script>
+</body>
+</html>
